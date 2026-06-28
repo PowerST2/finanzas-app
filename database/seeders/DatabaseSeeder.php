@@ -16,18 +16,20 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        if (! env('SUPERADMIN_EMAIL') || ! env('SUPERADMIN_PASSWORD')) {
+        $superadmin = config('superadmin');
+
+        if (! $superadmin['email'] || ! $superadmin['password']) {
             return;
         }
 
-        User::updateOrCreate(['email' => env('SUPERADMIN_EMAIL')], [
-            'name' => env('SUPERADMIN_NAME'),
-            'password' => Hash::make(env('SUPERADMIN_PASSWORD')),
+        User::updateOrCreate(['email' => $superadmin['email']], [
+            'name' => $superadmin['name'],
+            'password' => Hash::make($superadmin['password']),
             'is_superuser' => true,
             'is_active' => true,
-            'security_question' => env('SUPERADMIN_SECURITY_QUESTION'),
-            'security_answer_hash' => env('SUPERADMIN_SECURITY_ANSWER')
-                ? Hash::make(mb_strtolower(trim(env('SUPERADMIN_SECURITY_ANSWER'))))
+            'security_question' => $superadmin['security_question'],
+            'security_answer_hash' => $superadmin['security_answer']
+                ? Hash::make(mb_strtolower(trim($superadmin['security_answer'])))
                 : null,
         ]);
     }
