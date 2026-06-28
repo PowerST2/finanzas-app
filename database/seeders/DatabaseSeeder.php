@@ -16,13 +16,19 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        User::updateOrCreate(['email' => env('SUPERADMIN_EMAIL', 'admin@finanzas.local')], [
-            'name' => env('SUPERADMIN_NAME', 'Superadmin'),
-            'password' => Hash::make(env('SUPERADMIN_PASSWORD', 'password')),
+        if (! env('SUPERADMIN_EMAIL') || ! env('SUPERADMIN_PASSWORD')) {
+            return;
+        }
+
+        User::updateOrCreate(['email' => env('SUPERADMIN_EMAIL')], [
+            'name' => env('SUPERADMIN_NAME'),
+            'password' => Hash::make(env('SUPERADMIN_PASSWORD')),
             'is_superuser' => true,
             'is_active' => true,
-            'security_question' => env('SUPERADMIN_SECURITY_QUESTION', 'En que ciudad naciste?'),
-            'security_answer_hash' => Hash::make(mb_strtolower(trim(env('SUPERADMIN_SECURITY_ANSWER', 'lima')))),
+            'security_question' => env('SUPERADMIN_SECURITY_QUESTION'),
+            'security_answer_hash' => env('SUPERADMIN_SECURITY_ANSWER')
+                ? Hash::make(mb_strtolower(trim(env('SUPERADMIN_SECURITY_ANSWER'))))
+                : null,
         ]);
     }
 }
