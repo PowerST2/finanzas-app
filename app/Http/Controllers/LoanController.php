@@ -3,9 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\Loan;
+use App\Models\Transaction;
 use App\Models\Wallet;
 use App\Services\FinanceService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
 class LoanController extends Controller
@@ -37,6 +39,40 @@ class LoanController extends Controller
         abort_unless($loan->user_id === $request->user()->id, 404);
 
         return Inertia::render('Loans/Show', ['loan' => $loan->load(['payments.transaction']), 'wallets' => Wallet::where('user_id', $request->user()->id)->where('is_active', true)->orderBy('name')->get()]);
+    }
+
+    public function suspend(Request $request, Loan $loan)
+    {
+        abort_unless($loan->user_id === $request->user()->id, 404);
+        if ($loan->status === 'active') {
+            $loan->update(['status' => 'suspended']);
+        }
+
+        return back();
+    }
+
+    public function resume(Request $request, Loan $loan)
+    {
+        abort_unless($loan->user_id === $request->user()->id, 404);
+        if ($loan->status === 'suspended') {
+            $loan->update(['status' => 'active']);
+        }
+
+        return back();
+    }
+
+    public function destroy(Request $request, Loan $loan, FinanceService $finance)
+    {
+        abort_unless($loan->user_id === $request->user()->id, 404);
+
+        DB::transaction(function () use ($loan, $finance) {
+            $wallets = Wallet::whereIn('id', Transaction::where('loan_id', $loan->id)->pluck('wallet_id'))->get();
+            Transaction::where('loan_id', $loan->id)->delete();
+            $loan->delete();
+            $wallets->each(fn (Wallet $wallet) => $finance->refreshWallet($wallet));
+        });
+
+        return redirect()->route('loans.index');
     }
 
     public function pay(Request $request, Loan $loan, FinanceService $finance)

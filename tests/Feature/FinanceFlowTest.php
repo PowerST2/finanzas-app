@@ -59,6 +59,36 @@ class FinanceFlowTest extends TestCase
         $this->assertSame('150.00', $loan->refresh()->current_balance);
     }
 
+    public function test_loan_can_be_suspended_resumed_and_deleted_without_leaving_balance_behind(): void
+    {
+        $user = User::factory()->create();
+        $finance = app(FinanceService::class);
+        $wallet = $finance->onboard($user, [
+            'name' => 'Efectivo',
+            'type' => 'cash',
+            'currency' => 'PEN',
+            'opening_balance' => 100,
+        ]);
+        $loan = $finance->createLoan($user, ['wallet_id' => $wallet->id, 'name' => 'Apoyo', 'principal_amount' => 200, 'received_at' => '2026-06-28']);
+
+        $this->actingAs($user)->post("/loans/{$loan->id}/suspend")->assertRedirect();
+        $this->assertSame('suspended', $loan->refresh()->status);
+
+        $this->actingAs($user)->post("/loans/{$loan->id}/payments", [
+            'wallet_id' => $wallet->id,
+            'amount' => 20,
+            'paid_at' => '2026-06-29',
+        ])->assertSessionHasErrors('amount');
+
+        $this->actingAs($user)->post("/loans/{$loan->id}/resume")->assertRedirect();
+        $finance->payLoan($user, $loan->refresh(), ['wallet_id' => $wallet->id, 'amount' => 80, 'paid_at' => '2026-06-29']);
+        $this->assertSame('220.00', $wallet->refresh()->current_balance_cache);
+
+        $this->actingAs($user)->delete("/loans/{$loan->id}")->assertRedirect('/loans');
+        $this->assertDatabaseMissing('loans', ['id' => $loan->id]);
+        $this->assertSame('100.00', $wallet->refresh()->current_balance_cache);
+    }
+
     public function test_credit_cards_are_not_part_of_available_cash_dashboard_total(): void
     {
         $user = User::factory()->create();
@@ -226,5 +256,27 @@ class FinanceFlowTest extends TestCase
 
         $this->assertSame('20.00', $wallet->refresh()->current_balance_cache);
         $this->assertSame('80.00', $debt->refresh()->current_balance);
+    }
+
+    public function test_pending_debt_can_be_suspended_resumed_and_deleted_without_leaving_balance_behind(): void
+    {
+        $user = User::factory()->create();
+        $wallet = Wallet::create(['user_id' => $user->id, 'name' => 'Efectivo', 'type' => 'cash', 'currency' => 'PEN', 'exchange_rate_to_pen' => 1, 'opening_balance' => 100, 'current_balance_cache' => 100]);
+        $debt = PendingDebt::create(['user_id' => $user->id, 'name' => 'Recibo', 'total_amount' => 80, 'current_balance' => 80, 'currency' => 'PEN', 'status' => 'active']);
+
+        $this->actingAs($user)->post("/pending-debts/{$debt->id}/suspend")->assertRedirect();
+        $this->assertSame('suspended', $debt->refresh()->status);
+        $this->actingAs($user)->post("/pending-debts/{$debt->id}/resume")->assertRedirect();
+
+        $this->actingAs($user)->post("/pending-debts/{$debt->id}/payments", [
+            'wallet_id' => $wallet->id,
+            'amount' => 30,
+            'paid_at' => now(),
+        ])->assertRedirect();
+        $this->assertSame('70.00', $wallet->refresh()->current_balance_cache);
+
+        $this->actingAs($user)->delete("/pending-debts/{$debt->id}")->assertRedirect();
+        $this->assertDatabaseMissing('pending_debts', ['id' => $debt->id]);
+        $this->assertSame('100.00', $wallet->refresh()->current_balance_cache);
     }
 }

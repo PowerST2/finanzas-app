@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\CurrencyOption;
 use App\Models\PendingDebt;
 use App\Models\PendingDebtPayment;
+use App\Models\Transaction;
 use App\Models\Wallet;
 use App\Services\FinanceService;
 use App\Support\Currency;
@@ -20,7 +21,7 @@ class PendingDebtController extends Controller
         $rates = CurrencyOption::pluck('exchange_rate_to_pen', 'code');
 
         return Inertia::render('PendingDebts/Index', [
-            'debts' => PendingDebt::with('payments')->where('user_id', $request->user()->id)->where('status', 'active')->latest()->get()->map(function ($debt) use ($rates) {
+            'debts' => PendingDebt::with('payments')->where('user_id', $request->user()->id)->latest()->get()->map(function ($debt) use ($rates) {
                 $debt->exchange_rate_to_pen = (float) ($rates[$debt->currency] ?? 1);
 
                 return $debt;
@@ -96,6 +97,41 @@ class PendingDebtController extends Controller
                 'paid_at' => $data['paid_at'],
                 'notes' => $data['notes'] ?? null,
             ]);
+        });
+
+        return back();
+    }
+
+    public function suspend(Request $request, PendingDebt $debt)
+    {
+        abort_unless($debt->user_id === $request->user()->id, 404);
+        if ($debt->status === 'active') {
+            $debt->update(['status' => 'suspended']);
+        }
+
+        return back();
+    }
+
+    public function resume(Request $request, PendingDebt $debt)
+    {
+        abort_unless($debt->user_id === $request->user()->id, 404);
+        if ($debt->status === 'suspended') {
+            $debt->update(['status' => 'active']);
+        }
+
+        return back();
+    }
+
+    public function destroy(Request $request, PendingDebt $debt, FinanceService $finance)
+    {
+        abort_unless($debt->user_id === $request->user()->id, 404);
+
+        DB::transaction(function () use ($debt, $finance) {
+            $transactions = Transaction::whereIn('id', $debt->payments()->pluck('transaction_id'));
+            $wallets = Wallet::whereIn('id', $transactions->pluck('wallet_id'))->get();
+            $transactions->delete();
+            $debt->delete();
+            $wallets->each(fn (Wallet $wallet) => $finance->refreshWallet($wallet));
         });
 
         return back();

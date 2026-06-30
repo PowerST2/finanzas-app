@@ -91,7 +91,7 @@ class CreditCardController extends Controller
         $card->cycle_transactions_count = Transaction::where('status', 'confirmed')
             ->where(fn ($query) => $query->where('wallet_id', $card->id)->orWhere('destination_wallet_id', $card->id))
             ->where('date', '>=', $start)
-            ->where('date', '<', $cycle['close'])
+            ->where('date', '<', $cycle['close']->copy()->addDay())
             ->count();
         $card->cycle_start = $start->format('d/m/y');
         $card->cycle_close = $cycle['close']->format('d/m/y');
@@ -108,7 +108,7 @@ class CreditCardController extends Controller
         $transactions = Transaction::where('status', 'confirmed')
             ->where(fn ($query) => $query->where('wallet_id', $card->id)->orWhere('destination_wallet_id', $card->id))
             ->where('date', '>=', $start)
-            ->where('date', '<', $cycle['close'])
+            ->where('date', '<', $cycle['close']->copy()->addDay())
             ->get();
         $charges = (float) $transactions
             ->where('wallet_id', $card->id)

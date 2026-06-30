@@ -46,11 +46,16 @@ Route::middleware('auth')->group(function () {
     Route::post('/transactions/{transaction}/duplicate', [TransactionController::class, 'duplicate'])->name('transactions.duplicate');
     Route::get('/transactions/attachments/{attachment}', [TransactionController::class, 'attachment'])->name('transactions.attachments.show');
     Route::resource('transactions', TransactionController::class)->only(['index', 'create', 'store', 'edit', 'update', 'destroy']);
-    Route::resource('loans', LoanController::class)->only(['index', 'create', 'store', 'show']);
+    Route::post('/loans/{loan}/suspend', [LoanController::class, 'suspend'])->name('loans.suspend');
+    Route::post('/loans/{loan}/resume', [LoanController::class, 'resume'])->name('loans.resume');
+    Route::resource('loans', LoanController::class)->only(['index', 'create', 'store', 'show', 'destroy']);
     Route::post('/loans/{loan}/payments', [LoanController::class, 'pay'])->name('loans.pay');
     Route::get('/pending-debts', [PendingDebtController::class, 'index'])->name('pending-debts.index');
     Route::post('/pending-debts', [PendingDebtController::class, 'store'])->name('pending-debts.store');
+    Route::post('/pending-debts/{debt}/suspend', [PendingDebtController::class, 'suspend'])->name('pending-debts.suspend');
+    Route::post('/pending-debts/{debt}/resume', [PendingDebtController::class, 'resume'])->name('pending-debts.resume');
     Route::post('/pending-debts/{debt}/payments', [PendingDebtController::class, 'pay'])->name('pending-debts.pay');
+    Route::delete('/pending-debts/{debt}', [PendingDebtController::class, 'destroy'])->name('pending-debts.destroy');
     Route::get('/budgets', [BudgetController::class, 'index'])->name('budgets.index');
     Route::get('/budgets/{month}', [BudgetController::class, 'show'])->name('budgets.show');
     Route::post('/budgets', [BudgetController::class, 'store'])->name('budgets.store');

@@ -1,7 +1,7 @@
 import InputError from '@/Components/InputError';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { money, nowLocal } from '@/lib/format';
-import { Head, useForm } from '@inertiajs/react';
+import { Head, router, useForm } from '@inertiajs/react';
 import { CircleDollarSign } from 'lucide-react';
 
 export default function Index({ debts, wallets, currencies }: any) {
@@ -51,6 +51,7 @@ function DebtCard({ debt, wallets }: any) {
                 <div className="inline-flex rounded-2xl bg-amber-50 p-3 text-amber-700"><CircleDollarSign className="h-6 w-6" /></div>
                 <h3 className="mt-3 text-xl font-black text-slate-950">{debt.name}</h3>
                 <p className="text-sm font-semibold text-slate-500">Vence: {debt.due_date || 'sin fecha'}</p>
+                <p className="text-sm font-semibold text-slate-500">Estado: {statusLabel(debt.status)}</p>
             </div>
             <div className="text-right">
                 <div className="text-sm font-bold uppercase text-slate-500">Pendiente</div>
@@ -61,7 +62,12 @@ function DebtCard({ debt, wallets }: any) {
             <div className="h-full rounded-full bg-gradient-to-r from-amber-400 to-emerald-500" style={{ width: `${percent}%` }} />
         </div>
 
-        <form onSubmit={(e) => {
+        <div className="mt-4 flex gap-3 text-sm font-black">
+            {debt.status !== 'paid' && <button onClick={() => router.post(route(debt.status === 'suspended' ? 'pending-debts.resume' : 'pending-debts.suspend', debt.id), {}, { preserveScroll: true })} className="text-slate-700">{debt.status === 'suspended' ? 'Reactivar' : 'Suspender'}</button>}
+            <button onClick={() => confirm('Eliminar esta deuda tambien eliminara sus pagos. Continuar?') && router.delete(route('pending-debts.destroy', debt.id), { preserveScroll: true })} className="text-rose-700">Eliminar</button>
+        </div>
+
+        {debt.status === 'active' && <form onSubmit={(e) => {
             e.preventDefault();
             if (disabled) return;
             form.post(route('pending-debts.pay', debt.id), { preserveScroll: true, onSuccess: () => form.reset('amount', 'notes') });
@@ -79,7 +85,7 @@ function DebtCard({ debt, wallets }: any) {
             </label>
             <button disabled={disabled} className="rounded-2xl bg-slate-950 px-5 py-3 font-black text-white disabled:opacity-50">Pagar</button>
             {amount > maxPay && <p className="text-sm font-semibold text-rose-600 sm:col-span-3">El monto supera lo disponible en la billetera seleccionada.</p>}
-        </form>
+        </form>}
     </article>;
 }
 
@@ -90,3 +96,4 @@ function convert(amount: number, from: any, to: any) {
 
 function Field({ label, error, onChange, ...props }: any) { return <label className="block text-sm font-bold text-slate-700">{label}<input {...props} onChange={(e) => onChange(e.target.value)} className="mt-1 w-full rounded-xl border-slate-200" /><InputError message={error} className="mt-1" /></label>; }
 function Select({ label, options, value, onChange }: any) { return <label className="block text-sm font-bold text-slate-700">{label}<select value={value} onChange={(e) => onChange(e.target.value)} className="mt-1 w-full rounded-xl border-slate-200">{options.map((x: any) => <option key={x[0]} value={x[0]}>{x[1]}</option>)}</select></label>; }
+function statusLabel(status: string) { return status === 'paid' ? 'pagada' : status === 'suspended' ? 'suspendida' : 'activa'; }

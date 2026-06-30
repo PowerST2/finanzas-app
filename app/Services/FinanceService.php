@@ -216,6 +216,10 @@ class FinanceService
         abort_unless($loan->user_id === $user->id, 404);
 
         return DB::transaction(function () use ($user, $loan, $data) {
+            if ($loan->status !== 'active') {
+                throw ValidationException::withMessages(['amount' => 'Este prestamo no esta activo.']);
+            }
+
             if ((float) $data['amount'] > (float) $loan->current_balance) {
                 throw ValidationException::withMessages(['amount' => 'No puedes pagar mas que el saldo pendiente.']);
             }
