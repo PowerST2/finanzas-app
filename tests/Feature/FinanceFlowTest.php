@@ -3,8 +3,11 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Models\PendingDebt;
+use App\Models\Wallet;
 use App\Services\FinanceService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
 class FinanceFlowTest extends TestCase
@@ -54,5 +57,174 @@ class FinanceFlowTest extends TestCase
 
         $this->assertSame('350.00', $wallet->refresh()->current_balance_cache);
         $this->assertSame('150.00', $loan->refresh()->current_balance);
+    }
+
+    public function test_credit_cards_are_not_part_of_available_cash_dashboard_total(): void
+    {
+        $user = User::factory()->create();
+        Wallet::create(['user_id' => $user->id, 'name' => 'Efectivo', 'type' => 'cash', 'currency' => 'PEN', 'opening_balance' => 100, 'current_balance_cache' => 100]);
+        Wallet::create(['user_id' => $user->id, 'name' => 'Visa', 'type' => 'credit_card', 'currency' => 'PEN', 'opening_balance' => 1000, 'current_balance_cache' => 1000]);
+
+        $this->actingAs($user)->get('/dashboard')
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Dashboard')
+                ->where('summary.total', 100)
+                ->has('creditCards', 1)
+            );
+    }
+
+    public function test_credit_card_payment_moves_money_from_real_wallet_and_reduces_card_debt(): void
+    {
+        $user = User::factory()->create();
+        $finance = app(FinanceService::class);
+        $cash = Wallet::create(['user_id' => $user->id, 'name' => 'Efectivo', 'type' => 'cash', 'currency' => 'PEN', 'exchange_rate_to_pen' => 1, 'opening_balance' => 1000, 'current_balance_cache' => 1000]);
+        $card = Wallet::create(['user_id' => $user->id, 'name' => 'Visa', 'type' => 'credit_card', 'currency' => 'PEN', 'exchange_rate_to_pen' => 1, 'opening_balance' => 1000, 'current_balance_cache' => 1000]);
+
+        $finance->createTransaction($user, ['wallet_id' => $card->id, 'type' => 'expense', 'amount' => 300, 'date' => now(), 'status' => 'confirmed']);
+
+        $this->actingAs($user)->post(route('credit-cards.pay', $card), [
+            'wallet_id' => $cash->id,
+            'amount' => 300,
+            'date' => now(),
+        ])->assertRedirect();
+
+        $this->assertSame('700.00', $cash->refresh()->current_balance_cache);
+
+        $this->actingAs($user)->get(route('credit-cards.index'))
+            ->assertInertia(fn (Assert $page) => $page->where('cards.0.pending_amount', 0));
+    }
+
+    public function test_credit_card_cycle_dates_roll_to_next_month_when_close_matches_start_day(): void
+    {
+        $this->travelTo('2026-06-29 10:00:00');
+
+        $user = User::factory()->create();
+        Wallet::create(['user_id' => $user->id, 'name' => 'Efectivo', 'type' => 'cash', 'currency' => 'PEN', 'exchange_rate_to_pen' => 1, 'opening_balance' => 1000, 'current_balance_cache' => 1000]);
+        Wallet::create([
+            'user_id' => $user->id,
+            'name' => 'Visa',
+            'type' => 'credit_card',
+            'currency' => 'PEN',
+            'exchange_rate_to_pen' => 1,
+            'opening_balance' => 1000,
+            'current_balance_cache' => 1000,
+            'credit_cycle_started_at' => now(),
+            'credit_cycle_start_day' => 11,
+            'credit_cycle_close_day' => 11,
+            'credit_payment_due_day' => 5,
+            'credit_reset_day' => 12,
+        ]);
+
+        $this->actingAs($user)->get(route('credit-cards.index'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('cards.0.cycle_start', '29/06/26')
+                ->where('cards.0.cycle_close', '11/07/26')
+                ->where('cards.0.payment_due', '05/08/26')
+                ->where('cards.0.reset_date', '12/07/26')
+            );
+    }
+
+    public function test_credit_card_without_debt_can_not_be_paid(): void
+    {
+        $user = User::factory()->create();
+        $cash = Wallet::create(['user_id' => $user->id, 'name' => 'Efectivo', 'type' => 'cash', 'currency' => 'PEN', 'exchange_rate_to_pen' => 1, 'opening_balance' => 1000, 'current_balance_cache' => 1000]);
+        $card = Wallet::create(['user_id' => $user->id, 'name' => 'Visa', 'type' => 'credit_card', 'currency' => 'PEN', 'exchange_rate_to_pen' => 1, 'opening_balance' => 1000, 'current_balance_cache' => 1000]);
+
+        $this->actingAs($user)->post(route('credit-cards.pay', $card), [
+            'wallet_id' => $cash->id,
+            'amount' => 10,
+            'date' => now(),
+        ])->assertSessionHasErrors('amount');
+
+        $this->assertSame('1000.00', $cash->refresh()->current_balance_cache);
+    }
+
+    public function test_credit_card_payment_requires_enough_real_wallet_balance(): void
+    {
+        $user = User::factory()->create();
+        $finance = app(FinanceService::class);
+        $cash = Wallet::create(['user_id' => $user->id, 'name' => 'Efectivo', 'type' => 'cash', 'currency' => 'PEN', 'exchange_rate_to_pen' => 1, 'opening_balance' => 50, 'current_balance_cache' => 50]);
+        $card = Wallet::create(['user_id' => $user->id, 'name' => 'Visa', 'type' => 'credit_card', 'currency' => 'PEN', 'exchange_rate_to_pen' => 1, 'opening_balance' => 1000, 'current_balance_cache' => 1000]);
+
+        $finance->createTransaction($user, ['wallet_id' => $card->id, 'type' => 'expense', 'amount' => 300, 'date' => now(), 'status' => 'confirmed']);
+
+        $this->actingAs($user)->post(route('credit-cards.pay', $card), [
+            'wallet_id' => $cash->id,
+            'amount' => 300,
+            'date' => now(),
+        ])->assertSessionHasErrors('wallet_id');
+
+        $this->assertSame('50.00', $cash->refresh()->current_balance_cache);
+    }
+
+    public function test_expense_can_not_exceed_wallet_balance(): void
+    {
+        $user = User::factory()->create();
+        $wallet = Wallet::create(['user_id' => $user->id, 'name' => 'Efectivo', 'type' => 'cash', 'currency' => 'PEN', 'exchange_rate_to_pen' => 1, 'opening_balance' => 50, 'current_balance_cache' => 50]);
+        $categoryId = app(FinanceService::class)->defaultCategoryId($user, 'expense');
+
+        $this->actingAs($user)->post(route('transactions.store'), [
+            'wallet_id' => $wallet->id,
+            'category_id' => $categoryId,
+            'type' => 'expense',
+            'amount' => 60,
+            'currency' => 'PEN',
+            'date' => now(),
+            'status' => 'confirmed',
+        ])->assertSessionHasErrors('amount');
+
+        $this->assertSame('50.00', $wallet->refresh()->current_balance_cache);
+    }
+
+    public function test_credit_card_expense_can_not_exceed_available_line(): void
+    {
+        $user = User::factory()->create();
+        $card = Wallet::create(['user_id' => $user->id, 'name' => 'Visa', 'type' => 'credit_card', 'currency' => 'PEN', 'exchange_rate_to_pen' => 1, 'opening_balance' => 100, 'current_balance_cache' => 100]);
+        $categoryId = app(FinanceService::class)->defaultCategoryId($user, 'expense');
+
+        $this->actingAs($user)->post(route('transactions.store'), [
+            'wallet_id' => $card->id,
+            'category_id' => $categoryId,
+            'type' => 'expense',
+            'amount' => 150,
+            'currency' => 'PEN',
+            'date' => now(),
+            'status' => 'confirmed',
+        ])->assertSessionHasErrors('amount');
+
+        $this->assertSame('100.00', $card->refresh()->current_balance_cache);
+    }
+
+    public function test_pending_debt_can_be_paid_partially_from_real_wallet(): void
+    {
+        $user = User::factory()->create();
+        $wallet = Wallet::create(['user_id' => $user->id, 'name' => 'Efectivo', 'type' => 'cash', 'currency' => 'PEN', 'exchange_rate_to_pen' => 1, 'opening_balance' => 100, 'current_balance_cache' => 100]);
+        $debt = PendingDebt::create(['user_id' => $user->id, 'name' => 'Recibo', 'total_amount' => 80, 'current_balance' => 80, 'currency' => 'PEN', 'status' => 'active']);
+
+        $this->actingAs($user)->post(route('pending-debts.pay', $debt), [
+            'wallet_id' => $wallet->id,
+            'amount' => 30,
+            'paid_at' => now(),
+        ])->assertRedirect();
+
+        $this->assertSame('70.00', $wallet->refresh()->current_balance_cache);
+        $this->assertSame('50.00', $debt->refresh()->current_balance);
+        $this->assertSame('active', $debt->status);
+    }
+
+    public function test_pending_debt_payment_requires_enough_wallet_balance(): void
+    {
+        $user = User::factory()->create();
+        $wallet = Wallet::create(['user_id' => $user->id, 'name' => 'Efectivo', 'type' => 'cash', 'currency' => 'PEN', 'exchange_rate_to_pen' => 1, 'opening_balance' => 20, 'current_balance_cache' => 20]);
+        $debt = PendingDebt::create(['user_id' => $user->id, 'name' => 'Recibo', 'total_amount' => 80, 'current_balance' => 80, 'currency' => 'PEN', 'status' => 'active']);
+
+        $this->actingAs($user)->post(route('pending-debts.pay', $debt), [
+            'wallet_id' => $wallet->id,
+            'amount' => 30,
+            'paid_at' => now(),
+        ])->assertSessionHasErrors('wallet_id');
+
+        $this->assertSame('20.00', $wallet->refresh()->current_balance_cache);
+        $this->assertSame('80.00', $debt->refresh()->current_balance);
     }
 }

@@ -3,7 +3,7 @@ import { dateTime, money, transactionType } from '@/lib/format';
 import { Head, Link } from '@inertiajs/react';
 import { ArrowDownLeft, ArrowUpRight, Bell, CreditCard, Landmark, Plus, TrendingDown, TrendingUp, WalletCards } from 'lucide-react';
 
-export default function Dashboard({ summary, wallets, alerts, recentTransactions, topExpenses, lastBackup }: any) {
+export default function Dashboard({ summary, wallets, creditCards, alerts, recentTransactions, topExpenses, lastBackup }: any) {
     const currency = summary.currency || 'PEN';
     const maxExpense = Math.max(...topExpenses.map((x: any) => Number(x.amount)), 1);
 
@@ -17,7 +17,7 @@ export default function Dashboard({ summary, wallets, alerts, recentTransactions
                         <div className="relative z-10">
                             <div className="flex items-center gap-2 text-sm font-bold text-teal-200">
                                 <WalletCards className="h-4 w-4" />
-                                Saldo consolidado
+                                Dinero disponible real
                             </div>
                             <div className="mt-5 text-4xl font-black tracking-tight sm:text-6xl">{money(summary.total, currency)}</div>
                             <div className="mt-4 grid max-w-2xl gap-3 sm:grid-cols-2">
@@ -77,6 +77,24 @@ export default function Dashboard({ summary, wallets, alerts, recentTransactions
                                 </div>
                             )) : <EmptyLine text="Aun no hay gastos este mes." />}
                         </div>
+                    </div>
+                </section>
+
+                <section className="app-section p-5">
+                    <div className="flex items-center justify-between">
+                        <h3 className="text-lg font-black text-slate-950">Tarjetas de credito</h3>
+                        <Link href={route('credit-cards.index')} className="text-sm font-bold text-teal-700">Ver tarjetas</Link>
+                    </div>
+                    <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                        {creditCards.length ? creditCards.map((card: any) => (
+                            <div key={card.id} className="rounded-3xl bg-violet-50 p-4">
+                                <div className="font-black text-slate-950">{card.name}</div>
+                                <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                                    <div><span className="block font-semibold text-slate-500">Utilizado</span><strong>{money(card.used_amount, card.currency)}</strong></div>
+                                    <div><span className="block font-semibold text-slate-500">Disponible</span><strong>{money(card.available_amount, card.currency)}</strong></div>
+                                </div>
+                            </div>
+                        )) : <EmptyLine text="Sin tarjetas de credito." />}
                     </div>
                 </section>
 

@@ -1,6 +1,6 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { money, walletType } from '@/lib/format';
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 
 export default function Index({ wallets, displayCurrency }: any) {
     return (
@@ -12,7 +12,15 @@ export default function Index({ wallets, displayCurrency }: any) {
                     {wallets.map((wallet: any) => (
                         <div key={wallet.id} className="flex justify-between p-4">
                             <div><div className="font-medium">{wallet.name}</div><div className="text-sm text-gray-500">{walletType(wallet.type)} · moneda real {wallet.currency}</div></div>
-                            <div className="text-right"><strong>{money(wallet.display_balance ?? wallet.current_balance_cache, displayCurrency)}</strong><div className="text-xs text-gray-500">Real: {money(wallet.current_balance_cache, wallet.currency)}</div><div><Link href={route('wallets.edit', wallet.id)} className="text-sm text-teal-700">Editar</Link></div></div>
+                            <div className="text-right">
+                                <strong>{money(wallet.display_balance ?? wallet.current_balance_cache, displayCurrency)}</strong>
+                                <div className="text-xs text-gray-500">Real: {money(wallet.current_balance_cache, wallet.currency)}</div>
+                                <div className="mt-2 flex flex-wrap justify-end gap-2 text-sm">
+                                    <Link href={route('wallets.edit', wallet.id)} className="text-teal-700">Editar</Link>
+                                    <button onClick={() => router.post(route(wallet.is_active ? 'wallets.suspend' : 'wallets.resume', wallet.id), {}, { preserveScroll: true })} className="text-slate-700">{wallet.is_active ? 'Suspender' : 'Reanudar'}</button>
+                                    <button onClick={() => confirm('Eliminar esta billetera tambien eliminara sus movimientos. Continuar?') && router.delete(route('wallets.destroy', wallet.id))} className="text-rose-700">Eliminar</button>
+                                </div>
+                            </div>
                         </div>
                     ))}
                 </div>

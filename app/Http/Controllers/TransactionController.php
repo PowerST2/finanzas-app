@@ -66,7 +66,7 @@ class TransactionController extends Controller
         $data = $request->validate([
             'wallet_id' => ['required', 'integer'],
             'destination_wallet_id' => ['nullable', 'integer'],
-            'category_id' => ['nullable', 'integer'],
+            'category_id' => ['required', 'integer', 'exists:categories,id'],
             'type' => ['required', 'in:income,expense,transfer,adjustment'],
             'amount' => ['required', 'numeric', 'gt:0'],
             'date' => ['required', 'date'],
@@ -101,7 +101,7 @@ class TransactionController extends Controller
         $data = $request->validate([
             'wallet_id' => ['required', 'integer'],
             'destination_wallet_id' => ['nullable', 'integer'],
-            'category_id' => ['nullable', 'integer'],
+            'category_id' => ['required', 'integer', 'exists:categories,id'],
             'type' => ['required', 'in:income,expense,transfer,adjustment'],
             'amount' => ['required', 'numeric', 'gt:0'],
             'date' => ['required', 'date'],
@@ -121,6 +121,13 @@ class TransactionController extends Controller
     {
         $data = $request->validate(['reason' => ['required', 'string', 'max:500']]);
         $finance->cancelTransaction($request->user(), $transaction, $data['reason']);
+
+        return back();
+    }
+
+    public function destroy(Request $request, Transaction $transaction, FinanceService $finance)
+    {
+        $finance->deleteTransaction($request->user(), $transaction);
 
         return back();
     }

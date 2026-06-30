@@ -23,7 +23,7 @@ class RecurringRuleController extends Controller
     {
         $data = $request->validate([
             'wallet_id' => ['required', 'integer'],
-            'category_id' => ['nullable', 'integer'],
+            'category_id' => ['required', 'integer', 'exists:categories,id'],
             'type' => ['required', 'in:income,expense'],
             'frequency' => ['required', 'in:daily,weekly,monthly'],
             'amount' => ['required', 'numeric', 'gt:0'],

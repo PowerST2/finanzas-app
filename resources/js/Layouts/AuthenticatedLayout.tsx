@@ -6,6 +6,7 @@ import {
     BarChart3,
     CalendarDays,
     CreditCard,
+    CircleDollarSign,
     Gauge,
     Landmark,
     LayoutGrid,
@@ -27,8 +28,10 @@ type MobileGroup = { key: string; label: string; icon: LucideIcon; items: NavIte
 const navItems: NavItem[] = [
     ['dashboard', 'Panel', Gauge],
     ['wallets.index', 'Billeteras', WalletCards],
+    ['credit-cards.index', 'Tarjetas', CreditCard],
     ['transactions.index', 'Movimientos', CreditCard],
     ['loans.index', 'Prestamos', Landmark],
+    ['pending-debts.index', 'Deudas', CircleDollarSign],
     ['budgets.index', 'Presupuestos', LayoutGrid],
     ['goals.index', 'Metas', Target],
     ['recurring.index', 'Recurrentes', Repeat],
@@ -46,7 +49,7 @@ export default function Authenticated({
     const [openGroup, setOpenGroup] = useState<string | null>(null);
     const mobileGroups: MobileGroup[] = [
         { key: 'inicio', label: 'Inicio', icon: Gauge, items: [['dashboard', 'Panel', Gauge]] },
-        { key: 'dinero', label: 'Dinero', icon: WalletCards, items: [['wallets.index', 'Billeteras', WalletCards], ['transactions.index', 'Movimientos', CreditCard], ['loans.index', 'Prestamos', Landmark]] },
+        { key: 'dinero', label: 'Dinero', icon: WalletCards, items: [['wallets.index', 'Billeteras', WalletCards], ['credit-cards.index', 'Tarjetas', CreditCard], ['transactions.index', 'Movimientos', CreditCard], ['loans.index', 'Prestamos', Landmark], ['pending-debts.index', 'Deudas', CircleDollarSign]] },
         { key: 'plan', label: 'Plan', icon: Target, items: [['budgets.index', 'Presupuestos', LayoutGrid], ['goals.index', 'Metas', Target], ['recurring.index', 'Recurrentes', Repeat], ['calendar.index', 'Calendario', CalendarDays]] },
         { key: 'mas', label: 'Mas', icon: MoreHorizontal, items: [['reports.monthly', 'Reportes', BarChart3], ['alerts.index', 'Alertas', AlertTriangle], ...(user.is_superuser ? [['admin.index', 'Admin', Shield] as NavItem] : []), ['profile.edit', 'Perfil', UserRound]] },
     ];

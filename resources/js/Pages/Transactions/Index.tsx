@@ -1,7 +1,7 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { dateTime, money, transactionType } from '@/lib/format';
 import { Head, Link, router, useForm } from '@inertiajs/react';
-import { ArrowDownLeft, ArrowUpRight, Copy, FileText, Pencil, Plus, Search, XCircle } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, Copy, FileText, Pencil, Plus, Search, Trash2, XCircle } from 'lucide-react';
 
 export default function Index({ transactions, filters }: any) {
     const filterForm = useForm({ search: filters.search || '', type: filters.type || '', status: filters.status || '', from: filters.from || '', to: filters.to || '' });
@@ -62,6 +62,7 @@ export default function Index({ transactions, filters }: any) {
                                     <Link href={route('transactions.edit', tx.id)} className="rounded-xl bg-slate-100 p-2 text-slate-700"><Pencil className="h-4 w-4" /></Link>
                                     <button onClick={() => router.post(route('transactions.duplicate', tx.id), {}, { preserveScroll: true })} className="rounded-xl bg-slate-100 p-2 text-slate-700"><Copy className="h-4 w-4" /></button>
                                     {tx.status !== 'cancelled' && <button onClick={() => cancel(tx.id)} className="rounded-xl bg-rose-50 p-2 text-rose-700"><XCircle className="h-4 w-4" /></button>}
+                                    <button onClick={() => confirm('Eliminar este movimiento?') && router.delete(route('transactions.destroy', tx.id), { preserveScroll: true })} className="rounded-xl bg-rose-50 p-2 text-rose-700"><Trash2 className="h-4 w-4" /></button>
                                 </div>
                             </div>
                         </article>

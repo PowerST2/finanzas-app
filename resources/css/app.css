@@ -22,6 +22,23 @@
         border-color: #0f766e !important;
         box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.18) !important;
     }
+
+    input.finance-checkbox {
+        appearance: none;
+        border-radius: 9999px !important;
+        border-color: #99f6e4 !important;
+        background-color: #ffffff !important;
+        cursor: pointer;
+    }
+
+    input.finance-checkbox:checked {
+        border-color: #0f766e !important;
+        background-color: #0f766e !important;
+        background-image: url("data:image/svg+xml,%3csvg viewBox='0 0 16 16' fill='none' xmlns='http://www.w3.org/2000/svg'%3e%3cpath d='M4 8.2 6.8 11 12 5' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3e%3c/svg%3e") !important;
+        background-position: center !important;
+        background-repeat: no-repeat !important;
+        background-size: 0.75rem 0.75rem !important;
+    }
 }
 
 @layer components {

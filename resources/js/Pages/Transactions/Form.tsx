@@ -25,9 +25,13 @@ export default function Form({ wallets, categories, currencies, defaultType, def
     const sourceAmount = sourceWallet && inputCurrency ? Number(form.data.amount || 0) * Number(inputCurrency.exchange_rate_to_pen) / Number(sourceWallet.exchange_rate_to_pen || 1) : Number(form.data.amount || 0);
     const converted = sourceWallet && destinationWallet ? sourceAmount * Number(sourceWallet.exchange_rate_to_pen) / Number(destinationWallet.exchange_rate_to_pen || 1) : 0;
     const walletCurrency = sourceWallet?.currency || form.data.currency;
+    const outflow = ['expense', 'transfer'].includes(form.data.type);
+    const exceedsBalance = outflow && sourceWallet && sourceAmount > Number(sourceWallet.current_balance_cache || 0);
     const save = (e: React.FormEvent) => {
         e.preventDefault();
-        form.transform((data) => ({ ...data, _method: editing ? 'put' : undefined }));
+        if (exceedsBalance) return;
+        const categoryId = filtered.some((category: any) => Number(category.id) === Number(form.data.category_id)) ? form.data.category_id : filtered[0]?.id;
+        form.transform((data) => ({ ...data, category_id: categoryId, _method: editing ? 'put' : undefined }));
         form.post(editing ? route('transactions.update', transaction.id) : route('transactions.store'), { forceFormData: true });
     };
 
@@ -44,11 +48,13 @@ export default function Form({ wallets, categories, currencies, defaultType, def
                         <Select label="Tipo" value={form.data.type} onChange={(v: string) => form.setData('type', v)} options={[['expense', 'Egreso'], ['income', 'Ingreso'], ['transfer', 'Transferencia'], ['adjustment', 'Ajuste']]} />
                         <Select label="Billetera" value={form.data.wallet_id} onChange={(v: string) => form.setData('wallet_id', v)} options={wallets.map((w: any) => [w.id, w.name])} />
                         {form.data.type === 'transfer' && <Select label="Destino" value={form.data.destination_wallet_id} onChange={(v: string) => form.setData('destination_wallet_id', v)} options={wallets.map((w: any) => [w.id, w.name])} />}
-                        {form.data.type !== 'transfer' && <Select label="Categoria" value={form.data.category_id} onChange={(v: string) => form.setData('category_id', v)} options={[['', 'Sin categoria'], ...filtered.map((c: any) => [c.id, c.name])]} />}
+                        <Select label="Categoria" value={form.data.category_id || filtered[0]?.id || ''} onChange={(v: string) => form.setData('category_id', v)} options={filtered.map((c: any) => [c.id, c.name])} />
                         <Select label="Moneda del monto" value={form.data.currency} onChange={(v: string) => form.setData('currency', v)} options={currencies.map((x: any) => [x.code, `${x.code} - ${x.name}`])} />
                         <Field label="Monto" type="number" step="0.01" value={form.data.amount} onChange={(v: string) => form.setData('amount', v)} error={form.errors.amount} />
                     </div>
+                    {sourceWallet && <div className="rounded-2xl bg-slate-50 p-4 text-sm font-semibold text-slate-700">Saldo disponible en {sourceWallet.name}: {money(sourceWallet.current_balance_cache, sourceWallet.currency)}</div>}
                     {sourceWallet && form.data.currency !== walletCurrency && <div className="rounded-2xl bg-teal-50 p-4 text-sm font-semibold text-teal-900">El movimiento quedara registrado en {form.data.currency}; para el saldo de {sourceWallet.name} se convertira a {money(sourceAmount, walletCurrency)}.</div>}
+                    {exceedsBalance && <div className="rounded-2xl bg-rose-50 p-4 text-sm font-semibold text-rose-700">El monto supera el saldo disponible de la billetera seleccionada.</div>}
                     {form.data.type === 'transfer' && destinationWallet && <div className="rounded-2xl bg-slate-50 p-4 text-sm font-semibold text-slate-700">Llegara aprox. {money(converted, destinationWallet.currency)} a {destinationWallet.name}</div>}
                 </section>
 
@@ -66,7 +72,7 @@ export default function Form({ wallets, categories, currencies, defaultType, def
 
                 <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
                     <Link href={route('transactions.index')} className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-center font-bold text-slate-700">Cancelar</Link>
-                    <button className="rounded-2xl bg-slate-950 px-6 py-3 font-bold text-white shadow-xl shadow-slate-900/20">Guardar</button>
+                    <button disabled={exceedsBalance} className="rounded-2xl bg-slate-950 px-6 py-3 font-bold text-white shadow-xl shadow-slate-900/20 disabled:opacity-50">Guardar</button>
                 </div>
 
                 {auditLogs.length > 0 && <section className="rounded-lg bg-white p-4 shadow-sm">

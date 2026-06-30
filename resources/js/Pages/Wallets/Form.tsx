@@ -11,6 +11,10 @@ export default function Form({ wallet, walletTypes, currencies }: any) {
         exchange_rate_to_pen: wallet?.exchange_rate_to_pen || '1.00',
         opening_balance: wallet?.opening_balance || '0.00',
         is_active: wallet?.is_active ?? true,
+        credit_cycle_start_day: wallet?.credit_cycle_start_day || '',
+        credit_cycle_close_day: wallet?.credit_cycle_close_day || '',
+        credit_payment_due_day: wallet?.credit_payment_due_day || '',
+        credit_reset_day: wallet?.credit_reset_day || '',
     });
     const save = (e: React.FormEvent) => {
         e.preventDefault();
@@ -31,6 +35,15 @@ export default function Form({ wallet, walletTypes, currencies }: any) {
                 }} options={currencies.map((x: any) => [x.code, x.name])} />
                 <Field label="Tasa a soles" type="number" step="0.0001" value={form.data.exchange_rate_to_pen} onChange={(v: string) => form.setData('exchange_rate_to_pen', v)} error={form.errors.exchange_rate_to_pen} />
                 <Field label="Saldo inicial" type="number" step="0.01" value={form.data.opening_balance} onChange={(v: string) => form.setData('opening_balance', v)} error={form.errors.opening_balance} />
+                {form.data.type === 'credit_card' && (
+                    <section className="grid gap-3 rounded-2xl bg-white p-4 shadow-sm sm:grid-cols-2">
+                        <h3 className="sm:col-span-2 text-sm font-black uppercase text-slate-500">Ciclo de facturacion</h3>
+                        <Field label="Dia de inicio" type="number" min="1" max="31" value={form.data.credit_cycle_start_day} onChange={(v: string) => form.setData('credit_cycle_start_day', v)} error={form.errors.credit_cycle_start_day} />
+                        <Field label="Dia de cierre" type="number" min="1" max="31" value={form.data.credit_cycle_close_day} onChange={(v: string) => form.setData('credit_cycle_close_day', v)} error={form.errors.credit_cycle_close_day} />
+                        <Field label="Dia limite de pago" type="number" min="1" max="31" value={form.data.credit_payment_due_day} onChange={(v: string) => form.setData('credit_payment_due_day', v)} error={form.errors.credit_payment_due_day} />
+                        <Field label="Dia de reinicio" type="number" min="1" max="31" value={form.data.credit_reset_day} onChange={(v: string) => form.setData('credit_reset_day', v)} error={form.errors.credit_reset_day} />
+                    </section>
+                )}
                 <button className="w-full rounded-lg bg-teal-700 px-4 py-3 font-medium text-white">Guardar</button>
             </form>
         </AuthenticatedLayout>

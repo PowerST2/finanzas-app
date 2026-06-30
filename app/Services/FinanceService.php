@@ -65,12 +65,13 @@ class FinanceService
             $date = Carbon::parse($data['date']);
             $inputCurrency = $data['currency'] ?? $wallet->currency;
             $walletAmount = Currency::convert((float) $data['amount'], $inputCurrency, $wallet->currency);
+            $this->assertSufficientFunds($wallet, $data['type'], $walletAmount);
             $conversion = $this->conversion($wallet, $destination, $walletAmount);
             $transaction = Transaction::create([
                 'user_id' => $user->id,
                 'wallet_id' => $wallet->id,
                 'destination_wallet_id' => $destination?->id,
-                'category_id' => $data['category_id'] ?? null,
+                'category_id' => $data['category_id'] ?? $this->defaultCategoryId($user, $data['type']),
                 'type' => $data['type'],
                 'amount' => $walletAmount,
                 'destination_amount' => $conversion['destination_amount'],
@@ -111,11 +112,12 @@ class FinanceService
             $date = Carbon::parse($data['date']);
             $inputCurrency = $data['currency'] ?? $wallet->currency;
             $walletAmount = Currency::convert((float) $data['amount'], $inputCurrency, $wallet->currency);
+            $this->assertSufficientFunds($wallet, $data['type'], $walletAmount, $transaction);
             $conversion = $this->conversion($wallet, $destination, $walletAmount);
             $transaction->update([
                 'wallet_id' => $wallet->id,
                 'destination_wallet_id' => $destination?->id,
-                'category_id' => $data['category_id'] ?? null,
+                'category_id' => $data['category_id'] ?? $this->defaultCategoryId($user, $data['type']),
                 'type' => $data['type'],
                 'amount' => $walletAmount,
                 'destination_amount' => $conversion['destination_amount'],
@@ -152,6 +154,19 @@ class FinanceService
         });
     }
 
+    public function deleteTransaction(User $user, Transaction $transaction): void
+    {
+        abort_unless($transaction->user_id === $user->id, 404);
+
+        DB::transaction(function () use ($user, $transaction) {
+            $wallets = $this->walletsTouchedBy($transaction);
+            $old = $transaction->toArray();
+            $transaction->delete();
+            $this->refreshWallets($wallets);
+            $this->audit($user, $transaction, 'eliminado', $old, null);
+        });
+    }
+
     public function createLoan(User $user, array $data): Loan
     {
         return DB::transaction(function () use ($user, $data) {
@@ -172,10 +187,15 @@ class FinanceService
             ]);
 
             $date = Carbon::parse($data['received_at']);
+            if (($data['kind'] ?? 'borrowed') === 'lent') {
+                $this->assertSufficientFunds($wallet, 'loan_given', (float) $data['principal_amount']);
+            }
+
             Transaction::create([
                 'user_id' => $user->id,
                 'wallet_id' => $wallet->id,
                 'loan_id' => $loan->id,
+                'category_id' => $this->defaultCategoryId($user, ($data['kind'] ?? 'borrowed') === 'lent' ? 'loan_given' : 'loan_received'),
                 'type' => ($data['kind'] ?? 'borrowed') === 'lent' ? 'loan_given' : 'loan_received',
                 'amount' => $data['principal_amount'],
                 'date' => $date,
@@ -201,11 +221,16 @@ class FinanceService
             }
 
             $wallet = Wallet::where('user_id', $user->id)->findOrFail($data['wallet_id']);
+            if ($loan->kind !== 'lent') {
+                $this->assertSufficientFunds($wallet, 'loan_payment', (float) $data['amount']);
+            }
+
             $date = Carbon::parse($data['paid_at']);
             $transaction = Transaction::create([
                 'user_id' => $user->id,
                 'wallet_id' => $wallet->id,
                 'loan_id' => $loan->id,
+                'category_id' => $this->defaultCategoryId($user, $loan->kind === 'lent' ? 'loan_collection' : 'loan_payment'),
                 'type' => $loan->kind === 'lent' ? 'loan_collection' : 'loan_payment',
                 'amount' => $data['amount'],
                 'date' => $date,
@@ -324,5 +349,63 @@ class FinanceService
             'destination_amount' => round($amount * $rate, 2),
             'exchange_rate' => round($rate, 6),
         ];
+    }
+
+    public function defaultCategoryId(User $user, string $transactionType): int
+    {
+        $this->ensureCategories($user);
+
+        [$type, $name] = match ($transactionType) {
+            'income' => ['income', 'Otros ingresos'],
+            'loan_received' => ['income', 'Prestamo recibido'],
+            'loan_collection' => ['income', 'Cobro de prestamo'],
+            'loan_given' => ['expense', 'Prestamo otorgado'],
+            'loan_payment', 'transfer' => ['expense', 'Deudas'],
+            default => $transactionType === 'income' ? ['income', 'Otros ingresos'] : ['expense', 'Otros gastos'],
+        };
+
+        return Category::firstOrCreate(
+            ['user_id' => $user->id, 'name' => $name, 'type' => $type],
+            ['is_default' => true]
+        )->id;
+    }
+
+    private function assertSufficientFunds(Wallet $wallet, string $type, float $amount, ?Transaction $ignore = null): void
+    {
+        if (! in_array($type, ['expense', 'loan_payment', 'loan_given', 'transfer'], true)) {
+            return;
+        }
+
+        $available = $ignore && $ignore->wallet_id === $wallet->id
+            ? $this->balanceWithout($wallet, $ignore)
+            : (float) $wallet->current_balance_cache;
+
+        if ($amount > $available) {
+            throw ValidationException::withMessages(['amount' => 'El monto supera el saldo disponible de la billetera seleccionada.']);
+        }
+    }
+
+    private function balanceWithout(Wallet $wallet, Transaction $ignore): float
+    {
+        $balance = (float) $wallet->opening_balance;
+        $transactions = Transaction::where('status', 'confirmed')
+            ->where('id', '!=', $ignore->id)
+            ->where(function ($query) use ($wallet) {
+                $query->where('wallet_id', $wallet->id)->orWhere('destination_wallet_id', $wallet->id);
+            })
+            ->get();
+
+        foreach ($transactions as $transaction) {
+            $amount = (float) $transaction->amount;
+            $balance += match ($transaction->type) {
+                'income', 'loan_received', 'loan_collection' => $transaction->wallet_id === $wallet->id ? $amount : 0,
+                'expense', 'loan_payment', 'loan_given' => $transaction->wallet_id === $wallet->id ? -$amount : 0,
+                'transfer' => $transaction->destination_wallet_id === $wallet->id ? (float) ($transaction->destination_amount ?? $amount) : -$amount,
+                'adjustment' => $amount,
+                default => 0,
+            };
+        }
+
+        return $balance;
     }
 }
