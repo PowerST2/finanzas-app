@@ -1,23 +1,53 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { dateTime, money, transactionType } from '@/lib/format';
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, router, useForm } from '@inertiajs/react';
 import { ArrowDownLeft, ArrowUpRight, Bell, CreditCard, Landmark, Plus, TrendingDown, TrendingUp, WalletCards } from 'lucide-react';
 
-export default function Dashboard({ summary, wallets, creditCards, alerts, recentTransactions, topExpenses, lastBackup }: any) {
+export default function Dashboard({ summary, filters, filterWallets, wallets, creditCards, alerts, recentTransactions, topExpenses, lastBackup }: any) {
     const currency = summary.currency || 'PEN';
     const maxExpense = Math.max(...topExpenses.map((x: any) => Number(x.amount)), 1);
+    const filterForm = useForm({ scope: filters?.scope || 'real', wallet_id: filters?.wallet_id || '' });
+    const applyFilters = (data: any) => router.get(route('dashboard'), data, { preserveState: true });
+    const title = filterForm.data.wallet_id
+        ? filterWallets.find((wallet: any) => Number(wallet.id) === Number(filterForm.data.wallet_id))?.name
+        : filterForm.data.scope === 'all' ? 'Todo' : 'Dinero real';
 
     return (
         <AuthenticatedLayout header={<h2>Panel financiero</h2>}>
             <Head title="Panel" />
             <div className="space-y-6">
+                <section className="app-section flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <div className="text-xs font-black uppercase text-slate-500">Vista actual</div>
+                        <div className="text-lg font-black text-slate-950">{title}</div>
+                    </div>
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                        <select value={filterForm.data.scope} onChange={(e) => {
+                            const data = { scope: e.target.value, wallet_id: '' };
+                            filterForm.setData(data);
+                            applyFilters(data);
+                        }} className="border-gray-300">
+                            <option value="real">Dinero real</option>
+                            <option value="all">Todo</option>
+                        </select>
+                        <select value={filterForm.data.wallet_id} onChange={(e) => {
+                            const data = { ...filterForm.data, wallet_id: e.target.value };
+                            filterForm.setData(data);
+                            applyFilters(data);
+                        }} className="border-gray-300">
+                            <option value="">Todas las billeteras</option>
+                            {filterWallets.map((wallet: any) => <option key={wallet.id} value={wallet.id}>{wallet.name}{wallet.type === 'credit_card' ? ' · tarjeta' : ''}</option>)}
+                        </select>
+                    </div>
+                </section>
+
                 <section className="grid gap-4 xl:grid-cols-[1.35fr_0.65fr]">
                     <div className="relative overflow-hidden rounded-[2rem] bg-slate-950 p-6 text-white shadow-2xl shadow-slate-900/20 sm:p-8">
                         <div className="absolute inset-y-0 right-0 w-1/2 bg-gradient-to-l from-teal-400/25 to-transparent" />
                         <div className="relative z-10">
                             <div className="flex items-center gap-2 text-sm font-bold text-teal-200">
                                 <WalletCards className="h-4 w-4" />
-                                Dinero disponible real
+                                {filterForm.data.wallet_id ? 'Saldo de billetera' : filterForm.data.scope === 'all' ? 'Saldo general filtrado' : 'Dinero disponible real'}
                             </div>
                             <div className="mt-5 text-4xl font-black tracking-tight sm:text-6xl">{money(summary.total, currency)}</div>
                             <div className="mt-4 grid max-w-2xl gap-3 sm:grid-cols-2">

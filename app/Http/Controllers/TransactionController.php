@@ -18,9 +18,12 @@ class TransactionController extends Controller
 {
     public function index(Request $request)
     {
-        $filters = $request->only(['search', 'type', 'status', 'from', 'to']);
+        $filters = $request->only(['search', 'type', 'status', 'from', 'to', 'scope', 'wallet_id']);
+        $filters['scope'] = $filters['scope'] ?? 'real';
         $transactions = Transaction::with(['wallet', 'destinationWallet', 'category', 'loan', 'attachments'])
             ->where('user_id', $request->user()->id)
+            ->when($filters['wallet_id'] ?? null, fn ($query, $walletId) => $query->where(fn ($q) => $q->where('wallet_id', $walletId)->orWhere('destination_wallet_id', $walletId)))
+            ->when(! ($filters['wallet_id'] ?? null) && ($filters['scope'] ?? 'real') === 'real', fn ($query) => $query->whereHas('wallet', fn ($q) => $q->where('type', '!=', 'credit_card')))
             ->when($filters['search'] ?? null, function ($query, $search) {
                 $query->where(function ($query) use ($search) {
                     $query->where('description', 'ilike', "%{$search}%")
@@ -47,6 +50,7 @@ class TransactionController extends Controller
         return Inertia::render('Transactions/Index', [
             'transactions' => $transactions,
             'filters' => $filters,
+            'wallets' => Wallet::where('user_id', $request->user()->id)->orderBy('name')->get(['id', 'name', 'type']),
         ]);
     }
 
