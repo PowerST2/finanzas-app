@@ -1,22 +1,43 @@
+import GuidedTour from '@/Components/GuidedTour';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { dateTime, money, transactionType } from '@/lib/format';
 import { Head, Link, router, useForm } from '@inertiajs/react';
 import { ArrowDownLeft, ArrowUpRight, Bell, CreditCard, Landmark, Plus, TrendingDown, TrendingUp, WalletCards } from 'lucide-react';
+import { useEffect, useState } from 'react';
 
 export default function Dashboard({ summary, filters, filterWallets, wallets, creditCards, alerts, recentTransactions, topExpenses, lastBackup }: any) {
     const currency = summary.currency || 'PEN';
     const maxExpense = Math.max(...topExpenses.map((x: any) => Number(x.amount)), 1);
     const filterForm = useForm({ scope: filters?.scope || 'real', wallet_id: filters?.wallet_id || '' });
+    const [showGuide, setShowGuide] = useState(false);
+    const [tourOpen, setTourOpen] = useState(false);
     const applyFilters = (data: any) => router.get(route('dashboard'), data, { preserveState: true });
     const title = filterForm.data.wallet_id
         ? filterWallets.find((wallet: any) => Number(wallet.id) === Number(filterForm.data.wallet_id))?.name
         : filterForm.data.scope === 'all' ? 'Todo' : 'Dinero real';
 
+    useEffect(() => {
+        setShowGuide(localStorage.getItem('finance-dashboard-tour') !== '1');
+    }, []);
+
     return (
         <AuthenticatedLayout header={<h2>Panel financiero</h2>}>
             <Head title="Panel" />
             <div className="space-y-6">
-                <section className="app-section flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                {showGuide && (
+                    <section className="app-section flex flex-col gap-3 bg-teal-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <div className="text-sm font-black text-teal-800">Tour guiado</div>
+                            <p className="text-sm font-semibold text-teal-950">Te muestro paso a paso como leer y usar este panel.</p>
+                        </div>
+                        <div className="flex gap-2">
+                            <button onClick={() => setTourOpen(true)} className="rounded-2xl bg-slate-950 px-4 py-2 text-sm font-black text-white">Iniciar tour</button>
+                            <button onClick={() => { localStorage.setItem('finance-dashboard-tour', '1'); setShowGuide(false); }} className="rounded-2xl bg-white px-4 py-2 text-sm font-black text-slate-700">Ocultar</button>
+                        </div>
+                    </section>
+                )}
+
+                <section data-tour="filters" className="app-section flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                         <div className="text-xs font-black uppercase text-slate-500">Vista actual</div>
                         <div className="text-lg font-black text-slate-950">{title}</div>
@@ -42,7 +63,7 @@ export default function Dashboard({ summary, filters, filterWallets, wallets, cr
                 </section>
 
                 <section className="grid gap-4 xl:grid-cols-[1.35fr_0.65fr]">
-                    <div className="relative overflow-hidden rounded-[2rem] bg-slate-950 p-6 text-white shadow-2xl shadow-slate-900/20 sm:p-8">
+                    <div data-tour="summary" className="relative overflow-hidden rounded-[2rem] bg-slate-950 p-6 text-white shadow-2xl shadow-slate-900/20 sm:p-8">
                         <div className="absolute inset-y-0 right-0 w-1/2 bg-gradient-to-l from-teal-400/25 to-transparent" />
                         <div className="relative z-10">
                             <div className="flex items-center gap-2 text-sm font-bold text-teal-200">
@@ -63,7 +84,7 @@ export default function Dashboard({ summary, filters, filterWallets, wallets, cr
                     </div>
                 </section>
 
-                <section className="grid gap-3 sm:grid-cols-4">
+                <section data-tour="quick-actions" className="grid gap-3 sm:grid-cols-4">
                     <QuickAction href={route('transactions.create', { type: 'income' })} icon={ArrowDownLeft} label="Ingreso" color="bg-emerald-600" />
                     <QuickAction href={route('transactions.create', { type: 'expense' })} icon={ArrowUpRight} label="Egreso" color="bg-rose-600" />
                     <QuickAction href={route('transactions.create', { type: 'transfer' })} icon={CreditCard} label="Transferencia" color="bg-slate-950" />
@@ -71,7 +92,7 @@ export default function Dashboard({ summary, filters, filterWallets, wallets, cr
                 </section>
 
                 <section className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
-                    <div className="app-section p-5">
+                    <div data-tour="wallets" className="app-section p-5">
                         <div className="flex items-center justify-between">
                             <h3 className="text-lg font-black text-slate-950">Billeteras</h3>
                             <Link href={route('wallets.index')} className="text-sm font-bold text-teal-700">Ver todas</Link>
@@ -110,7 +131,7 @@ export default function Dashboard({ summary, filters, filterWallets, wallets, cr
                     </div>
                 </section>
 
-                <section className="app-section p-5">
+                <section data-tour="credit-cards" className="app-section p-5">
                     <div className="flex items-center justify-between">
                         <h3 className="text-lg font-black text-slate-950">Tarjetas de credito</h3>
                         <Link href={route('credit-cards.index')} className="text-sm font-bold text-teal-700">Ver tarjetas</Link>
@@ -129,7 +150,7 @@ export default function Dashboard({ summary, filters, filterWallets, wallets, cr
                 </section>
 
                 <section className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
-                    <div className="app-section p-5">
+                    <div data-tour="recent-activity" className="app-section p-5">
                         <div className="flex items-center justify-between">
                             <h3 className="text-lg font-black text-slate-950">Actividad reciente</h3>
                             <Link href={route('transactions.index')} className="text-sm font-bold text-teal-700">Movimientos</Link>
@@ -168,6 +189,22 @@ export default function Dashboard({ summary, filters, filterWallets, wallets, cr
                     </div>
                 </section>
             </div>
+            <GuidedTour
+                start={tourOpen}
+                storageKey="finance-dashboard-tour"
+                onFinish={() => {
+                    setTourOpen(false);
+                    setShowGuide(false);
+                }}
+                steps={[
+                    { selector: '[data-tour="filters"]', title: 'Elige que quieres ver', text: 'Aqui puedes cambiar entre dinero real, todo el sistema o una billetera especifica. Sirve para no mezclar tarjetas con efectivo.' },
+                    { selector: '[data-tour="summary"]', title: 'Resumen principal', text: 'Este bloque muestra el saldo del filtro actual, ingresos del mes y egresos del mes.' },
+                    { selector: '[data-tour="quick-actions"]', title: 'Registra rapido', text: 'Desde aqui puedes crear ingresos, egresos, transferencias o ir a prestamos sin buscar en el menu.' },
+                    { selector: '[data-tour="wallets"]', title: 'Billeteras reales', text: 'Aqui ves tu dinero disponible por billetera. Las tarjetas de credito se controlan aparte.' },
+                    { selector: '[data-tour="credit-cards"]', title: 'Tarjetas de credito', text: 'Aqui revisas cuanto usaste de cada tarjeta y cuanto queda disponible de la linea.' },
+                    { selector: '[data-tour="recent-activity"]', title: 'Actividad reciente', text: 'Esta lista te ayuda a confirmar los ultimos movimientos registrados.' },
+                ]}
+            />
         </AuthenticatedLayout>
     );
 }

@@ -8,6 +8,7 @@ import {
     CreditCard,
     CircleDollarSign,
     Gauge,
+    HelpCircle,
     Landmark,
     LayoutGrid,
     LogOut,
@@ -38,6 +39,7 @@ const navItems: NavItem[] = [
     ['calendar.index', 'Calendario', CalendarDays],
     ['reports.monthly', 'Reportes', BarChart3],
     ['alerts.index', 'Alertas', AlertTriangle],
+    ['guide.index', 'Guia', HelpCircle],
 ];
 
 export default function Authenticated({
@@ -51,7 +53,7 @@ export default function Authenticated({
         { key: 'inicio', label: 'Inicio', icon: Gauge, items: [['dashboard', 'Panel', Gauge]] },
         { key: 'dinero', label: 'Dinero', icon: WalletCards, items: [['wallets.index', 'Billeteras', WalletCards], ['credit-cards.index', 'Tarjetas', CreditCard], ['transactions.index', 'Movimientos', CreditCard], ['loans.index', 'Prestamos', Landmark], ['pending-debts.index', 'Deudas', CircleDollarSign]] },
         { key: 'plan', label: 'Plan', icon: Target, items: [['budgets.index', 'Presupuestos', LayoutGrid], ['goals.index', 'Metas', Target], ['recurring.index', 'Recurrentes', Repeat], ['calendar.index', 'Calendario', CalendarDays]] },
-        { key: 'mas', label: 'Mas', icon: MoreHorizontal, items: [['reports.monthly', 'Reportes', BarChart3], ['alerts.index', 'Alertas', AlertTriangle], ...(user.is_superuser ? [['admin.index', 'Admin', Shield] as NavItem] : []), ['profile.edit', 'Perfil', UserRound]] },
+        { key: 'mas', label: 'Mas', icon: MoreHorizontal, items: [['reports.monthly', 'Reportes', BarChart3], ['alerts.index', 'Alertas', AlertTriangle], ['guide.index', 'Guia', HelpCircle], ...(user.is_superuser ? [['admin.index', 'Admin', Shield] as NavItem] : []), ['profile.edit', 'Perfil', UserRound]] },
     ];
 
     return (

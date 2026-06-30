@@ -56,6 +56,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/budgets', [BudgetController::class, 'store'])->name('budgets.store');
     Route::get('/alerts', [AlertController::class, 'index'])->name('alerts.index');
     Route::patch('/alerts/{alert}/read', [AlertController::class, 'read'])->name('alerts.read');
+    Route::get('/guide', fn () => Inertia::render('Guide/Index'))->name('guide.index');
     Route::get('/reports/monthly', [ReportController::class, 'monthly'])->name('reports.monthly');
     Route::get('/reports/monthly/csv', [ReportController::class, 'csv'])->name('reports.monthly.csv.simple');
     Route::get('/reports/monthly.csv', [ReportController::class, 'csv'])->name('reports.monthly.csv');
